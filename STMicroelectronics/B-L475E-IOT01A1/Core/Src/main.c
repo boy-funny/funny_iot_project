@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -31,6 +32,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define SSID     "seong"
+#define PASSWORD "0466034q"
+
+#define CONNECTION_TRIAL_MAX          10
+
+#define TERMOUT(...)  printf(__VA_ARGS__)
+
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 
 /* USER CODE END PD */
 
@@ -53,7 +62,11 @@ UART_HandleTypeDef huart3;
 
 PCD_HandleTypeDef hpcd_USB_OTG_FS;
 
+osThreadId defaultTaskHandle;
+osThreadId wifiTaskHandle;
 /* USER CODE BEGIN PV */
+uint8_t RemoteIP[] = {192,168,1,3};
+#define RemotePORT	8000
 
 /* USER CODE END PV */
 
@@ -67,12 +80,17 @@ static void MX_SPI3_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
+void StartDefaultTask(void const * argument);
+void StartWifiTask(void const * argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+//extern UART_HandleTypeDef hDiscoUart;
+//extern  SPI_HandleTypeDef hspi;
 
 /* USER CODE END 0 */
 
@@ -100,7 +118,6 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -114,7 +131,45 @@ int main(void)
   MX_USB_OTG_FS_PCD_Init();
   /* USER CODE BEGIN 2 */
 
+  BSP_LED_Init(LED2);
+
+  BSP_COM_Init(COM1, &huart1);
+
   /* USER CODE END 2 */
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* definition and creation of defaultTask */
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of wifiTask */
+  osThreadDef(wifiTask, StartWifiTask, osPriorityIdle, 0, 128);
+  wifiTaskHandle = osThreadCreate(osThread(wifiTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -161,7 +216,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLM = 1;
   RCC_OscInitStruct.PLL.PLLN = 40;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -325,11 +380,11 @@ static void MX_SPI3_Init(void)
   hspi3.Instance = SPI3;
   hspi3.Init.Mode = SPI_MODE_MASTER;
   hspi3.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi3.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi3.Init.DataSize = SPI_DATASIZE_16BIT;
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -632,11 +687,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -644,7 +696,186 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+/**
+  * @brief  Retargets the C library TERMOUT function to the USART.
+  * @param  None
+  * @retval None
+  */
+PUTCHAR_PROTOTYPE
+{
+  /* Place your implementation of fputc here */
+  /* e.g. write a character to the USART1 and Loop until the end of transmission */
+  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
+
+  return ch;
+}
+
+/**
+  * @brief  EXTI line detection callback.
+  * @param  GPIO_Pin: Specifies the port pin connected to corresponding EXTI line.
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  switch (GPIO_Pin)
+  {
+    case (GPIO_PIN_1):
+    {
+      SPI_WIFI_ISR();
+      break;
+    }
+    default:
+    {
+      break;
+    }
+  }
+}
+
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void const * argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartWifiTask */
+/**
+* @brief Function implementing the wifiTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartWifiTask */
+void StartWifiTask(void const * argument)
+{
+  /* USER CODE BEGIN StartWifiTask */
+
+  uint8_t  MAC_Addr[6] = {0};
+  uint8_t  IP_Addr[4] = {0};
+  int32_t Socket = -1;
+  int16_t Trials = CONNECTION_TRIAL_MAX;
+
+  TERMOUT("****** WIFI Module in TCP Client mode demonstration ****** \n\n");
+  TERMOUT("TCP Client Instructions :\n");
+  TERMOUT("1- Make sure your Phone is connected to the same network that\n");
+  TERMOUT("   you configured using the Configuration Access Point.\n");
+  TERMOUT("2- Create a server by using the android application TCP Server\n");
+  TERMOUT("   with port(8002).\n");
+  TERMOUT("3- Get the Network Name or IP Address of your Android from the step 2.\n\n");
+
+	/*Initialize  WIFI module */
+	if(WIFI_Init() ==  WIFI_STATUS_OK)
+	{
+	  TERMOUT("> WIFI Module Initialized.\n");
+	  if(WIFI_GetMAC_Address(MAC_Addr, sizeof(MAC_Addr)) == WIFI_STATUS_OK)
+	  {
+		TERMOUT("> es-wifi module MAC Address : %X:%X:%X:%X:%X:%X\n",
+				 MAC_Addr[0],
+				 MAC_Addr[1],
+				 MAC_Addr[2],
+				 MAC_Addr[3],
+				 MAC_Addr[4],
+				 MAC_Addr[5]);
+	  }
+	  else
+	  {
+		TERMOUT("> ERROR : CANNOT get MAC address\n");
+		BSP_LED_On(LED2);
+	  }
+
+	  if( WIFI_Connect(SSID, PASSWORD, WIFI_ECN_WPA2_PSK) == WIFI_STATUS_OK)
+	  {
+		TERMOUT("> es-wifi module connected \n");
+		if(WIFI_GetIP_Address(IP_Addr, sizeof(IP_Addr)) == WIFI_STATUS_OK)
+		{
+		  TERMOUT("> es-wifi module got IP Address : %d.%d.%d.%d\n",
+				 IP_Addr[0],
+				 IP_Addr[1],
+				 IP_Addr[2],
+				 IP_Addr[3]);
+
+		  TERMOUT("> Trying to connect to Server: %d.%d.%d.%d:%d ...\n",
+				 RemoteIP[0],
+				 RemoteIP[1],
+				 RemoteIP[2],
+				 RemoteIP[3],
+							 RemotePORT);
+
+		  while (Trials--)
+		  {
+			if( WIFI_OpenClientConnection(0, WIFI_TCP_PROTOCOL, "TCP_CLIENT", RemoteIP, RemotePORT, 0) == WIFI_STATUS_OK)
+			{
+			  TERMOUT("> TCP Connection opened successfully.\n");
+			  Socket = 0;
+			  break;
+			}
+		  }
+		  if(Socket == -1)
+		  {
+			TERMOUT("> ERROR : Cannot open Connection\n");
+			BSP_LED_On(LED2);
+		  }
+		}
+		else
+		{
+		  TERMOUT("> ERROR : es-wifi module CANNOT get IP address\n");
+		  BSP_LED_On(LED2);
+		}
+	  }
+	  else
+	  {
+		TERMOUT("> ERROR : es-wifi module NOT connected\n");
+		BSP_LED_On(LED2);
+	  }
+	}
+	else
+	{
+	  TERMOUT("> ERROR : WIFI Module cannot be initialized.\n");
+	  BSP_LED_On(LED2);
+	}
+
+
+  /* Infinite loop */
+  for(;;)
+  {
+	wifiTask(Socket);
+    osDelay(1);
+  }
+  /* USER CODE END StartWifiTask */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM7 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM7) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.

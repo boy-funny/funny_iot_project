@@ -29,4 +29,26 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>B-L475E-IOT01</name>
+			<type>2</type>
+			<location>C:/Users/seong/Desktop/project/funny_iot_project/STMicroelectronics/STM32Cube_FW_L4_V1.18.1_Driver/BSP/B-L475E-IOT01</location>
+		</link>
+		<link>
+			<name>CMSIS_RTOS_V2</name>
+			<type>2</type>
+			<location>C:/Users/seong/Desktop/project/funny_iot_project/STMicroelectronics/B-L475E-IOT01A1/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2</location>
+		</link>
+		<link>
+			<name>Source</name>
+			<type>2</type>
+			<location>C:/Users/seong/Desktop/project/funny_iot_project/STMicroelectronics/B-L475E-IOT01A1/Middlewares/Third_Party/FreeRTOS/Source</location>
+		</link>
+		<link>
+			<name>Src</name>
+			<type>2</type>
+			<location>C:/Users/seong/Desktop/project/funny_iot_project/STMicroelectronics/Common/Src</location>
+		</link>
+	</linkedResources>
 </projectDescription>
