@@ -179,11 +179,16 @@ int8_t SPI_WIFI_Init(uint16_t mode)
 
 #ifdef WIFI_USE_CMSIS_OS
     cmddata_rdy_rising_event=0;
-    es_wifi_mutex = osMutexCreate(osMutex(es_wifi_mutex));
-    spi_mutex = osMutexCreate(osMutex(spi_mutex));
-    spi_rx_sem = osSemaphoreCreate(osSemaphore(spi_rx_sem) , 1 );
-    spi_tx_sem = osSemaphoreCreate(osSemaphore(spi_tx_sem) , 1 );
-    cmddata_rdy_rising_sem = osSemaphoreCreate(osSemaphore(cmddata_rdy_rising_sem) , 1 );
+	es_wifi_mutex = osMutexNew(osMutex(es_wifi_mutex));	// CMSIS V2
+	spi_mutex = osMutexNew(osMutex(spi_mutex));			// CMSIS V2
+    spi_rx_sem = osSemaphoreNew(1,0,osSemaphore(spi_rx_sem));			// CMSIS V2
+    spi_tx_sem = osSemaphoreNew(1,0,osSemaphore(spi_tx_sem));			// CMSIS V2
+    cmddata_rdy_rising_sem = osSemaphoreNew(1,0,osSemaphore(cmddata_rdy_rising_sem));			// CMSIS V2
+//    es_wifi_mutex = osMutexCreate(osMutex(es_wifi_mutex));	// CMSIS V1
+//    spi_mutex = osMutexCreate(osMutex(spi_mutex));			// CMSIS V1
+//    spi_rx_sem = osSemaphoreCreate(osSemaphore(spi_rx_sem) , 1 );			// CMSIS V1
+//    spi_tx_sem = osSemaphoreCreate(osSemaphore(spi_tx_sem) , 1 );			// CMSIS V1
+//    cmddata_rdy_rising_sem = osSemaphoreCreate(osSemaphore(cmddata_rdy_rising_sem) , 1 );			// CMSIS V1
     /* take semaphore */
     SEM_WAIT(cmddata_rdy_rising_sem, 1);
     SEM_WAIT(spi_rx_sem, 1);

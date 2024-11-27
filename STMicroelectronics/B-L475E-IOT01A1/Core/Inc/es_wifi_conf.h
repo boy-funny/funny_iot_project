@@ -35,7 +35,8 @@ extern osMutexId es_wifi_mutex;
 #define LOCK_WIFI()             osMutexWait(es_wifi_mutex, 0)
 #define UNLOCK_WIFI()           osMutexRelease(es_wifi_mutex)
 #define SEM_SIGNAL(a)           osSemaphoreRelease(a)
-#define SEM_WAIT(a,timeout)     osSemaphoreWait(a,timeout)
+//#define SEM_WAIT(a,timeout)     osSemaphoreWait(a,timeout)		// CMSIS V1
+#define SEM_WAIT(a,timeout)     osSemaphoreAcquire(a,timeout)		// CMSIS V2
 #define SPI_INTERFACE_PRIO              configMAX_SYSCALL_INTERRUPT_PRIORITY
 #else
 
